@@ -1,0 +1,2125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DataGraphEngine — Graph Analytics System</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  /* ─── Reset & Base ──────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg0:   #0a0c10;
+    --bg1:   #0f1117;
+    --bg2:   #161920;
+    --bg3:   #1d2028;
+    --line:  #252830;
+    --muted: #3a3f4a;
+    --dim:   #6b7180;
+    --text:  #d4d8e2;
+    --bright:#f0f2f8;
+    --accent:#4fffb0;    /* electric mint */
+    --accent2:#ff4f8b;   /* hot pink */
+    --accent3:#4fa8ff;   /* cool blue */
+    --accent4:#ffb84f;   /* amber */
+    --node-r: 10px;
+    --radius: 6px;
+    --panel: 300px;
+    --header: 52px;
+  }
+
+  html, body { height: 100%; overflow: hidden; }
+
+  body {
+    font-family: 'Space Mono', monospace;
+    background: var(--bg0);
+    color: var(--text);
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ─── Scrollbar ─────────────────────────────────────────────── */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: var(--bg1); }
+  ::-webkit-scrollbar-thumb { background: var(--muted); border-radius: 4px; }
+
+  /* ─── Header ────────────────────────────────────────────────── */
+  #header {
+    height: var(--header);
+    background: var(--bg1);
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    padding: 0 18px;
+    gap: 20px;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 20;
+  }
+
+  #logo {
+    font-family: 'Syne', sans-serif;
+    font-size: 21px;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    color: var(--bright);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  #logo span.dot {
+    width: 8px; height: 8px;
+    background: var(--accent);
+    border-radius: 50%;
+    display: inline-block;
+    box-shadow: 0 0 8px var(--accent);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity: 1; box-shadow: 0 0 8px var(--accent); }
+    50%      { opacity: 0.5; box-shadow: 0 0 2px var(--accent); }
+  }
+
+  /* Sample dataset selector */
+  #dataset-bar {
+    display: flex;
+    gap: 6px;
+    flex: 1;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  #dataset-bar::-webkit-scrollbar { display: none; }
+
+  .ds-btn {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    padding: 4px 10px;
+    border: 1px solid var(--muted);
+    background: transparent;
+    color: var(--dim);
+    border-radius: var(--radius);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s;
+  }
+  .ds-btn:hover, .ds-btn.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(79, 255, 176, 0.06);
+  }
+
+  #run-btn {
+    font-family: 'Syne', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    padding: 7px 18px;
+    background: var(--accent);
+    color: #000;
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: opacity 0.2s;
+  }
+  #run-btn:hover { opacity: 0.85; }
+  #run-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ─── Main Layout ───────────────────────────────────────────── */
+  #main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ─── Left Panel ────────────────────────────────────────────── */
+  #left-panel {
+    width: var(--panel);
+    background: var(--bg1);
+    border-right: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+
+  .panel-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--line);
+    flex-shrink: 0;
+  }
+  .ptab {
+    flex: 1;
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 10px 4px;
+    text-align: center;
+    cursor: pointer;
+    color: var(--dim);
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+  }
+  .ptab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+
+  .ptab-content { display: none; flex: 1; overflow-y: auto; padding: 14px; }
+  .ptab-content.active { display: flex; flex-direction: column; gap: 10px; }
+
+  /* ─── Stats Cards ───────────────────────────────────────────── */
+  .stat-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .stat-card {
+    background: var(--bg2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 10px;
+  }
+  .stat-card .val {
+    font-family: 'Syne', sans-serif;
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--bright);
+    line-height: 1;
+  }
+  .stat-card .lbl {
+    font-size: 9px;
+    color: var(--dim);
+    letter-spacing: 0.5px;
+    margin-top: 3px;
+  }
+  .stat-card.accent .val { color: var(--accent); }
+  .stat-card.pink .val   { color: var(--accent2); }
+  .stat-card.blue .val   { color: var(--accent3); }
+  .stat-card.amber .val  { color: var(--accent4); }
+
+  /* ─── Centrality Table ──────────────────────────────────────── */
+  .section-label {
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--dim);
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+  }
+
+  .rank-table { width: 100%; border-collapse: collapse; }
+  .rank-table th {
+    font-size: 8px;
+    letter-spacing: 1px;
+    color: var(--dim);
+    text-align: left;
+    padding: 4px 6px;
+    border-bottom: 1px solid var(--line);
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .rank-table td {
+    font-size: 10px;
+    padding: 5px 6px;
+    border-bottom: 1px solid var(--bg2);
+    color: var(--text);
+  }
+  .rank-table tr:hover td { background: var(--bg2); }
+  .rank-table td.node-id { color: var(--accent); font-weight: 700; }
+  .rank-badge {
+    display: inline-block;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    font-size: 8px;
+    line-height: 16px;
+    text-align: center;
+    font-weight: 700;
+    color: #000;
+    background: var(--muted);
+  }
+  .rank-badge.r1 { background: var(--accent4); }
+  .rank-badge.r2 { background: var(--dim); }
+  .rank-badge.r3 { background: var(--muted); }
+
+  .bar-cell { position: relative; }
+  .bar-fill {
+    height: 3px;
+    background: var(--accent);
+    border-radius: 2px;
+    margin-top: 2px;
+    transition: width 0.5s ease;
+  }
+
+  /* ─── ETL Log ───────────────────────────────────────────────── */
+  .log-entry {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 10px;
+    padding: 6px 0;
+    border-bottom: 1px solid var(--bg2);
+  }
+  .log-step {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 8px;
+    letter-spacing: 1px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+  .log-step.EXTRACT  { background: rgba(79,255,176,0.15); color: var(--accent); }
+  .log-step.TRANSFORM{ background: rgba(79,168,255,0.15); color: var(--accent3); }
+  .log-step.VALIDATE { background: rgba(255,184,79,0.15);  color: var(--accent4); }
+  .log-step.LOAD     { background: rgba(255,79,139,0.15); color: var(--accent2); }
+  .log-msg { color: var(--dim); line-height: 1.4; }
+
+  /* ─── Center — Graph Canvas ─────────────────────────────────── */
+  #canvas-wrap {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+    background: var(--bg0);
+  }
+
+  /* Subtle grid */
+  #canvas-wrap::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--bg1) 1px, transparent 1px),
+      linear-gradient(90deg, var(--bg1) 1px, transparent 1px);
+    background-size: 40px 40px;
+    opacity: 0.5;
+    pointer-events: none;
+  }
+
+  #graph-svg {
+    width: 100%;
+    height: 100%;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* SVG elements */
+  .edge-line {
+    stroke: var(--muted);
+    stroke-width: 1.5;
+    fill: none;
+    opacity: 0.5;
+    transition: stroke 0.3s, opacity 0.3s;
+  }
+  .edge-line.highlight { stroke: var(--accent); opacity: 1; stroke-width: 2; }
+
+  .node-circle {
+    fill: var(--bg2);
+    stroke: var(--muted);
+    stroke-width: 1.5;
+    cursor: grab;
+    transition: fill 0.3s, stroke 0.3s, r 0.3s;
+  }
+  .node-circle:active { cursor: grabbing; }
+  .node-circle:hover { stroke: var(--accent); fill: var(--bg3); }
+  .node-circle.selected { stroke: var(--accent); stroke-width: 2.5; fill: var(--bg3); }
+  .node-circle.highlighted { stroke: var(--accent2); stroke-width: 2; }
+
+  .node-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    fill: var(--dim);
+    pointer-events: none;
+    text-anchor: middle;
+    dominant-baseline: hanging;
+    user-select: none;
+  }
+  .node-label.selected { fill: var(--bright); }
+
+  /* Community color classes */
+  .comm-0 { stroke: var(--accent); }
+  .comm-1 { stroke: var(--accent2); }
+  .comm-2 { stroke: var(--accent3); }
+  .comm-3 { stroke: var(--accent4); }
+  .comm-4 { stroke: #b44fff; }
+  .comm-5 { stroke: #ff7f4f; }
+
+  /* ─── Canvas Controls ───────────────────────────────────────── */
+  #canvas-controls {
+    position: absolute;
+    bottom: 14px;
+    right: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    z-index: 10;
+  }
+  .ctrl-btn {
+    width: 30px; height: 30px;
+    background: var(--bg2);
+    border: 1px solid var(--line);
+    color: var(--dim);
+    border-radius: var(--radius);
+    cursor: pointer;
+    font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+  }
+  .ctrl-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ─── Algo overlay badge ────────────────────────────────────── */
+  #algo-badge {
+    position: absolute;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--bg2);
+    border: 1px solid var(--line);
+    border-radius: 100px;
+    padding: 4px 14px;
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: var(--dim);
+    z-index: 10;
+    display: none;
+  }
+  #algo-badge.visible { display: block; }
+  #algo-badge strong { color: var(--accent); }
+
+  /* ─── Right Panel ───────────────────────────────────────────── */
+  #right-panel {
+    width: var(--panel);
+    background: var(--bg1);
+    border-left: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    overflow: hidden;
+  }
+
+  /* ─── Query Panel ───────────────────────────────────────────── */
+  #query-wrap {
+    padding: 14px;
+    border-bottom: 1px solid var(--line);
+    flex-shrink: 0;
+  }
+  #query-wrap .section-label { margin-bottom: 8px; display: block; }
+
+  #query-input-row {
+    display: flex;
+    gap: 6px;
+  }
+  #nl-query {
+    flex: 1;
+    background: var(--bg2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    color: var(--bright);
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    padding: 7px 10px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  #nl-query::placeholder { color: var(--muted); }
+  #nl-query:focus { border-color: var(--accent); }
+
+  #nl-submit {
+    background: transparent;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    border-radius: var(--radius);
+    cursor: pointer;
+    padding: 0 10px;
+    font-size: 12px;
+    transition: all 0.15s;
+  }
+  #nl-submit:hover { background: var(--accent); color: #000; }
+
+  .query-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 8px;
+  }
+  .query-chip {
+    font-size: 9px;
+    padding: 3px 8px;
+    border: 1px solid var(--muted);
+    border-radius: 100px;
+    color: var(--dim);
+    cursor: pointer;
+    transition: all 0.12s;
+  }
+  .query-chip:hover { border-color: var(--accent); color: var(--accent); }
+
+  #query-answer {
+    margin-top: 10px;
+    padding: 10px;
+    background: var(--bg2);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    font-size: 10px;
+    color: var(--text);
+    line-height: 1.6;
+    display: none;
+  }
+  #query-answer.visible { display: block; }
+
+  /* ─── Chart Area ────────────────────────────────────────────── */
+  #chart-tabs {
+    display: flex;
+    border-bottom: 1px solid var(--line);
+    flex-shrink: 0;
+  }
+  .ctab {
+    flex: 1;
+    font-size: 9px;
+    letter-spacing: 1px;
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    text-transform: uppercase;
+    padding: 9px 4px;
+    text-align: center;
+    cursor: pointer;
+    color: var(--dim);
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+  }
+  .ctab.active { color: var(--accent3); border-bottom-color: var(--accent3); }
+
+  #chart-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .chart-container {
+    background: var(--bg2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 12px;
+  }
+  .chart-title {
+    font-size: 9px;
+    letter-spacing: 1px;
+    color: var(--dim);
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+
+  canvas.mini-chart {
+    width: 100% !important;
+    height: 120px !important;
+  }
+
+  /* ─── Algorithm path trace ──────────────────────────────────── */
+  .path-trace {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+  }
+  .path-node {
+    font-size: 9px;
+    padding: 2px 8px;
+    background: var(--bg3);
+    border: 1px solid var(--muted);
+    border-radius: 100px;
+    color: var(--text);
+  }
+  .path-arrow { color: var(--accent); font-size: 10px; }
+
+  /* ─── Loading overlay ───────────────────────────────────────── */
+  #loading-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(10,12,16,0.85);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 14px;
+    z-index: 50;
+  }
+  #loading-overlay.show { display: flex; }
+  .spinner {
+    width: 32px; height: 32px;
+    border: 2px solid var(--muted);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text {
+    font-size: 11px;
+    color: var(--dim);
+    letter-spacing: 1px;
+  }
+
+  /* ─── Tooltip ───────────────────────────────────────────────── */
+  #tooltip {
+    position: fixed;
+    background: var(--bg2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 8px 12px;
+    font-size: 10px;
+    color: var(--text);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.15s;
+    z-index: 100;
+    min-width: 160px;
+  }
+  #tooltip.visible { opacity: 1; }
+  #tooltip .t-name { font-family: 'Syne', sans-serif; font-weight: 700; color: var(--bright); margin-bottom: 5px; }
+  #tooltip .t-row { display: flex; justify-content: space-between; gap: 12px; color: var(--dim); }
+  #tooltip .t-val { color: var(--accent); }
+
+  /* ─── Empty state ───────────────────────────────────────────── */
+  #empty-state {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    pointer-events: none;
+    z-index: 2;
+  }
+  .empty-icon { font-size: 48px; opacity: 0.12; }
+  .empty-label {
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 1px;
+    font-family: 'Syne', sans-serif;
+  }
+
+  /* ─── Node editor (right-click) ─────────────────────────────── */
+  #ctx-menu {
+    position: fixed;
+    background: var(--bg2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+    z-index: 200;
+    display: none;
+    min-width: 150px;
+  }
+  #ctx-menu.show { display: block; }
+  .ctx-item {
+    padding: 8px 14px;
+    font-size: 10px;
+    cursor: pointer;
+    transition: background 0.1s;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .ctx-item:hover { background: var(--bg3); color: var(--bright); }
+  .ctx-item .ico { width: 14px; text-align: center; }
+
+  /* ─── Upload Modal ──────────────────────────────────────────── */
+  #upload-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(10,12,16,0.82);
+    backdrop-filter: blur(4px);
+    z-index: 500;
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+  #upload-modal-overlay.show { display: flex; }
+
+  #upload-modal {
+    background: var(--bg1);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    width: 480px;
+    max-width: 94vw;
+    padding: 28px;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.5);
+    animation: modalIn 0.25s ease-out;
+  }
+  @keyframes modalIn {
+    from { opacity: 0; transform: translateY(16px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  #upload-modal .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 18px;
+  }
+  #upload-modal .modal-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--bright);
+    letter-spacing: 0.5px;
+  }
+  #upload-modal .modal-close {
+    width: 28px; height: 28px;
+    background: var(--bg2);
+    border: 1px solid var(--line);
+    border-radius: 50%;
+    color: var(--dim);
+    cursor: pointer;
+    font-size: 14px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+  }
+  #upload-modal .modal-close:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  #upload-dropzone {
+    border: 2px dashed var(--muted);
+    border-radius: 10px;
+    padding: 36px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-bottom: 16px;
+  }
+  #upload-dropzone:hover, #upload-dropzone.dragover {
+    border-color: var(--accent);
+    background: rgba(79,255,176,0.04);
+  }
+  #upload-dropzone .drop-icon {
+    font-size: 36px;
+    margin-bottom: 8px;
+    opacity: 0.4;
+  }
+  #upload-dropzone .drop-msg {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  #upload-dropzone .drop-hint {
+    font-size: 10px;
+    color: var(--dim);
+  }
+  #upload-file-name {
+    text-align: center;
+    font-size: 11px;
+    color: var(--accent);
+    margin-bottom: 14px;
+    min-height: 16px;
+  }
+  .upload-format-info {
+    background: var(--bg2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    margin-bottom: 18px;
+  }
+  .upload-format-info .fmt-label {
+    font-family: 'Syne', sans-serif;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--dim);
+    margin-bottom: 6px;
+  }
+  .upload-format-info pre {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    color: var(--text);
+    white-space: pre-wrap;
+    line-height: 1.5;
+    margin: 0;
+  }
+  #upload-submit-btn {
+    width: 100%;
+    padding: 10px;
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    border: none;
+    border-radius: var(--radius);
+    background: var(--accent);
+    color: #000;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+  #upload-submit-btn:hover { opacity: 0.85; }
+  #upload-submit-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  /* Upload button styles in header */
+  #upload-csv-btn, #upload-json-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .upload-icon {
+    font-size: 11px;
+    opacity: 0.7;
+  }
+
+  /* ─── Viz Mode Bar ──────────────────────────────────────────── */
+  #viz-mode-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 42px;
+    background: var(--bg1);
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    padding: 0 18px;
+    gap: 14px;
+    z-index: 12;
+  }
+  #viz-mode-bar .viz-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--bright);
+    letter-spacing: 0.5px;
+    margin-right: auto;
+  }
+  .viz-tab {
+    font-family: 'Syne', sans-serif;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    padding: 5px 14px;
+    border-radius: 100px;
+    border: 1px solid var(--muted);
+    background: transparent;
+    color: var(--dim);
+    cursor: pointer;
+    transition: all 0.18s;
+    text-transform: uppercase;
+  }
+  .viz-tab:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .viz-tab.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #000;
+    box-shadow: 0 0 12px rgba(79,255,176,0.25);
+  }
+
+  #graph-svg { margin-top: 42px; height: calc(100% - 42px); }
+
+  /* Full-size chart for Bar/Line/Heatmap modes */
+  #viz-chart-wrap {
+    position: absolute;
+    top: 42px;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 5;
+    display: none;
+    padding: 24px;
+    background: var(--bg0);
+  }
+  #viz-chart-wrap.visible { display: flex; align-items: center; justify-content: center; }
+  #viz-chart-wrap canvas {
+    width: 100% !important;
+    max-width: 900px;
+    height: 100% !important;
+    max-height: 500px;
+  }
+
+  /* ─── Responsive tweak ──────────────────────────────────────── */
+  @media (max-width: 900px) {
+    :root { --panel: 240px; }
+  }
+  @media (max-width: 680px) {
+    #left-panel, #right-panel { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── Header ─────────────────────────────────────────────────── -->
+<div id="header">
+  <div id="logo">
+    <span class="dot"></span>
+    DataGraphEngine
+  </div>
+  <div id="dataset-bar">
+    <button class="ds-btn active" data-key="social_network">Social Network</button>
+    <button class="ds-btn" data-key="city_roads">City Roads</button>
+    <button class="ds-btn" data-key="internet_topology">Internet Topology</button>
+    <button class="ds-btn" data-key="molecule">Molecule</button>
+    <button class="ds-btn" data-key="custom">Custom JSON</button>
+    <button class="ds-btn" id="upload-csv-btn" title="Upload a CSV file"><span class="upload-icon">&#9650;</span> Upload CSV</button>
+    <button class="ds-btn" id="upload-json-btn" title="Upload a JSON file"><span class="upload-icon">&#9650;</span> Upload JSON</button>
+  </div>
+  <button id="run-btn">▶ ANALYZE</button>
+</div>
+
+<!-- ── Main ───────────────────────────────────────────────────── -->
+<div id="main">
+
+  <!-- Left Panel -->
+  <div id="left-panel">
+    <div class="panel-tabs">
+      <div class="ptab active" data-tab="stats">Stats</div>
+      <div class="ptab" data-tab="centrality">Ranks</div>
+      <div class="ptab" data-tab="etl">ETL Log</div>
+    </div>
+
+    <!-- Stats -->
+    <div class="ptab-content active" id="tab-stats">
+      <div class="stat-grid">
+        <div class="stat-card accent"><div class="val" id="s-nodes">—</div><div class="lbl">Nodes</div></div>
+        <div class="stat-card pink"><div class="val" id="s-edges">—</div><div class="lbl">Edges</div></div>
+        <div class="stat-card blue"><div class="val" id="s-comps">—</div><div class="lbl">Components</div></div>
+        <div class="stat-card amber"><div class="val" id="s-comms">—</div><div class="lbl">Communities</div></div>
+      </div>
+      <div class="stat-grid" style="margin-top:0">
+        <div class="stat-card"><div class="val" id="s-density" style="font-size:16px">—</div><div class="lbl">Density</div></div>
+        <div class="stat-card"><div class="val" id="s-directed" style="font-size:13px">—</div><div class="lbl">Type</div></div>
+      </div>
+      <div class="section-label" style="margin-top:4px">BFS Traversal</div>
+      <div id="bfs-path" class="path-trace"></div>
+      <div class="section-label">DFS Order</div>
+      <div id="dfs-path" class="path-trace"></div>
+    </div>
+
+    <!-- Centrality Rankings -->
+    <div class="ptab-content" id="tab-centrality">
+      <div class="section-label">Degree Centrality</div>
+      <table class="rank-table" id="tbl-degree">
+        <thead><tr><th>#</th><th>Node</th><th>Score</th><th>Bar</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <div class="section-label" style="margin-top:6px">Betweenness Centrality</div>
+      <table class="rank-table" id="tbl-between">
+        <thead><tr><th>#</th><th>Node</th><th>Score</th><th>Bar</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- ETL Log -->
+    <div class="ptab-content" id="tab-etl">
+      <div class="section-label">Pipeline Log</div>
+      <div id="etl-log-container"></div>
+    </div>
+  </div>
+
+  <!-- Center Canvas -->
+  <div id="canvas-wrap">
+    <div id="viz-mode-bar">
+      <span class="viz-title">Graph Visualisation</span>
+      <button class="viz-tab active" data-viz="network">Network</button>
+      <button class="viz-tab" data-viz="bar">Bar</button>
+      <button class="viz-tab" data-viz="line">Line</button>
+      <button class="viz-tab" data-viz="heatmap">Heatmap</button>
+    </div>
+    <div id="viz-chart-wrap">
+      <canvas id="viz-full-chart"></canvas>
+    </div>
+    <svg id="graph-svg">
+      <defs>
+        <marker id="arrow" markerWidth="8" markerHeight="8" refX="12" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="var(--muted)" />
+        </marker>
+        <marker id="arrow-hl" markerWidth="8" markerHeight="8" refX="12" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L8,3 z" fill="var(--accent)" />
+        </marker>
+        <filter id="glow">
+          <feGaussianBlur stdDeviation="3" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      <g id="edges-g"></g>
+      <g id="nodes-g"></g>
+    </svg>
+
+    <div id="empty-state">
+      <div class="empty-icon">◈</div>
+      <div class="empty-label">Select a dataset and click ANALYZE</div>
+    </div>
+
+    <div id="algo-badge">
+      Running: <strong id="algo-name">—</strong>
+    </div>
+
+    <div id="canvas-controls">
+      <button class="ctrl-btn" id="zoom-in" title="Zoom In">+</button>
+      <button class="ctrl-btn" id="zoom-out" title="Zoom Out">−</button>
+      <button class="ctrl-btn" id="zoom-fit" title="Fit">⊞</button>
+      <button class="ctrl-btn" id="toggle-labels" title="Toggle Labels">T</button>
+      <button class="ctrl-btn" id="toggle-comm" title="Community Colors">◉</button>
+    </div>
+
+    <div id="loading-overlay">
+      <div class="spinner"></div>
+      <div class="loading-text">RUNNING ANALYSIS</div>
+    </div>
+  </div>
+
+  <!-- Right Panel -->
+  <div id="right-panel">
+    <div id="query-wrap">
+      <span class="section-label">Natural Language Query</span>
+      <div id="query-input-row">
+        <input id="nl-query" type="text" placeholder="e.g. shortest path from A to B" />
+        <button id="nl-submit">→</button>
+      </div>
+      <div class="query-chip-row">
+        <div class="query-chip" data-q="most connected node">hub</div>
+        <div class="query-chip" data-q="find communities">communities</div>
+        <div class="query-chip" data-q="betweenness bridges">bridges</div>
+        <div class="query-chip" data-q="run bfs traversal">BFS</div>
+        <div class="query-chip" data-q="dijkstra shortest paths">Dijkstra</div>
+        <div class="query-chip" data-q="connected components">components</div>
+      </div>
+      <div id="query-answer"></div>
+    </div>
+
+    <div id="chart-tabs">
+      <div class="ctab active" data-ctab="bar">Bar</div>
+      <div class="ctab" data-ctab="line">Line</div>
+      <div class="ctab" data-ctab="heatmap">Heatmap</div>
+    </div>
+
+    <div id="chart-area">
+      <div class="chart-container">
+        <div class="chart-title" id="chart-main-title">Degree Centrality</div>
+        <canvas id="chart-main" class="mini-chart"></canvas>
+      </div>
+      <div class="chart-container">
+        <div class="chart-title">Betweenness vs Closeness</div>
+        <canvas id="chart-scatter" class="mini-chart"></canvas>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<!-- Tooltip -->
+<div id="tooltip">
+  <div class="t-name" id="tt-name"></div>
+  <div class="t-row"><span>Degree</span><span class="t-val" id="tt-deg"></span></div>
+  <div class="t-row"><span>Betweenness</span><span class="t-val" id="tt-bet"></span></div>
+  <div class="t-row"><span>Community</span><span class="t-val" id="tt-comm"></span></div>
+</div>
+
+<!-- Context Menu -->
+<div id="ctx-menu">
+  <div class="ctx-item" id="ctx-bfs"><span class="ico">⊕</span>BFS from here</div>
+  <div class="ctx-item" id="ctx-dfs"><span class="ico">⊗</span>DFS from here</div>
+  <div class="ctx-item" id="ctx-dijkstra"><span class="ico">⊙</span>Dijkstra from here</div>
+</div>
+
+<!-- Upload Modal -->
+<div id="upload-modal-overlay">
+  <div id="upload-modal">
+    <div class="modal-header">
+      <div class="modal-title" id="upload-modal-title">Upload File</div>
+      <button class="modal-close" id="upload-modal-close">✕</button>
+    </div>
+    <div id="upload-dropzone">
+      <div class="drop-icon">📄</div>
+      <div class="drop-msg">Click to browse or drag and drop</div>
+      <div class="drop-hint" id="upload-drop-hint">Accepts .csv or .json files</div>
+    </div>
+    <div id="upload-file-name"></div>
+    <div class="upload-format-info">
+      <div class="fmt-label" id="upload-format-label">Expected Format</div>
+      <pre id="upload-format-pre">source,target,weight
+Alice,Bob,1.0
+Bob,Carol,2.0</pre>
+    </div>
+    <button id="upload-submit-btn" disabled>ANALYZE FILE</button>
+    <input type="file" id="upload-file-input" style="display:none;" />
+  </div>
+</div>
+
+<!-- ── Scripts ─────────────────────────────────────────────────── -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+
+/* ═══════════════════════════════════════════════════════════════
+   DataGraphEngine Frontend Engine
+═══════════════════════════════════════════════════════════════ */
+
+// ─── State ─────────────────────────────────────────────────────
+const state = {
+  graphData: null,       // full API response
+  nodes: [],             // [{id, x, y, vx, vy, ...}]
+  edges: [],             // [{source, target, weight}]
+  directed: false,
+  selectedNode: null,
+  showLabels: true,
+  showComm: true,
+  zoom: 1,
+  panX: 0, panY: 0,
+  simulation: null,
+  activeDataset: 'social_network',
+  chartMode: 'bar',
+  vizMode: 'network',    // 'network' | 'bar' | 'line' | 'heatmap'
+  charts: {},
+  vizChart: null,        // full-size chart instance
+  contextNode: null,
+};
+
+// ─── Sample data (inline, same as backend seeds) ───────────────
+const SAMPLES = {
+  social_network: {
+    directed: false,
+    nodes: [
+      {id:"Alice"},{id:"Bob"},{id:"Carol"},{id:"Dave"},{id:"Eve"},
+      {id:"Frank"},{id:"Grace"},{id:"Heidi"},{id:"Ivan"},{id:"Judy"},
+    ],
+    edges: [
+      {source:"Alice",target:"Bob",weight:1},{source:"Alice",target:"Carol",weight:1},
+      {source:"Bob",target:"Dave",weight:1},{source:"Carol",target:"Dave",weight:1},
+      {source:"Dave",target:"Eve",weight:1},{source:"Eve",target:"Frank",weight:1},
+      {source:"Frank",target:"Grace",weight:1},{source:"Grace",target:"Heidi",weight:1},
+      {source:"Heidi",target:"Ivan",weight:1},{source:"Ivan",target:"Judy",weight:1},
+      {source:"Judy",target:"Alice",weight:1},{source:"Dave",target:"Frank",weight:1},
+      {source:"Alice",target:"Eve",weight:1},
+    ],
+  },
+  city_roads: {
+    directed: false,
+    nodes: [
+      {id:"Downtown"},{id:"Uptown"},{id:"Midtown"},{id:"Eastside"},
+      {id:"Westside"},{id:"Northgate"},{id:"Southpark"},{id:"Harbor"},
+    ],
+    edges: [
+      {source:"Downtown",target:"Uptown",weight:4},{source:"Downtown",target:"Midtown",weight:2},
+      {source:"Downtown",target:"Eastside",weight:7},{source:"Uptown",target:"Northgate",weight:3},
+      {source:"Midtown",target:"Westside",weight:5},{source:"Midtown",target:"Eastside",weight:1},
+      {source:"Eastside",target:"Harbor",weight:6},{source:"Westside",target:"Southpark",weight:2},
+      {source:"Southpark",target:"Harbor",weight:4},{source:"Northgate",target:"Midtown",weight:8},
+    ],
+  },
+  internet_topology: {
+    directed: true,
+    nodes: [{id:"AS1"},{id:"AS2"},{id:"AS3"},{id:"AS4"},{id:"AS5"},{id:"AS6"},{id:"AS7"},{id:"AS8"}],
+    edges: [
+      {source:"AS1",target:"AS2",weight:10},{source:"AS1",target:"AS3",weight:5},
+      {source:"AS2",target:"AS4",weight:3},{source:"AS3",target:"AS4",weight:8},
+      {source:"AS4",target:"AS5",weight:2},{source:"AS5",target:"AS6",weight:6},
+      {source:"AS6",target:"AS7",weight:1},{source:"AS7",target:"AS8",weight:4},
+      {source:"AS3",target:"AS6",weight:9},{source:"AS2",target:"AS7",weight:7},
+    ],
+  },
+  molecule: {
+    directed: false,
+    nodes: [{id:"C1"},{id:"C2"},{id:"C3"},{id:"C4"},{id:"C5"},{id:"C6"},{id:"H1"},{id:"H2"},{id:"H3"},{id:"OH"},{id:"NH2"}],
+    edges: [
+      {source:"C1",target:"C2",weight:1.5},{source:"C2",target:"C3",weight:1.5},
+      {source:"C3",target:"C4",weight:1.5},{source:"C4",target:"C5",weight:1.5},
+      {source:"C5",target:"C6",weight:1.5},{source:"C6",target:"C1",weight:1.5},
+      {source:"C1",target:"H1",weight:1},{source:"C2",target:"H2",weight:1},
+      {source:"C3",target:"H3",weight:1},{source:"C4",target:"OH",weight:1},
+      {source:"C5",target:"NH2",weight:1},
+    ],
+  },
+};
+
+let customPayload = null;
+
+// ─── Init ───────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  setupUI();
+  // Auto-run with first dataset
+  setTimeout(() => runAnalysis(), 200);
+});
+
+function setupUI() {
+  // Dataset buttons
+  document.querySelectorAll('.ds-btn').forEach(btn => {
+    if (btn.id === 'upload-btn') return; // Skip upload btn
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.ds-btn:not(#upload-btn)').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.activeDataset = btn.dataset.key;
+      if (btn.dataset.key === 'custom') showCustomModal();
+    });
+  });
+
+  // Setup file upload buttons
+  document.getElementById('upload-csv-btn').addEventListener('click', () => openUploadModal('csv'));
+  document.getElementById('upload-json-btn').addEventListener('click', () => openUploadModal('json'));
+
+  // Upload modal events
+  document.getElementById('upload-modal-close').addEventListener('click', closeUploadModal);
+  document.getElementById('upload-modal-overlay').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) closeUploadModal();
+  });
+  document.getElementById('upload-submit-btn').addEventListener('click', submitUploadedFile);
+
+  const dropzone = document.getElementById('upload-dropzone');
+  dropzone.addEventListener('click', () => document.getElementById('upload-file-input').click());
+  dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('dragover'); });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('dragover');
+    if (e.dataTransfer.files.length) handleUploadFileSelect(e.dataTransfer.files[0]);
+  });
+  document.getElementById('upload-file-input').addEventListener('change', (e) => {
+    if (e.target.files.length) handleUploadFileSelect(e.target.files[0]);
+    e.target.value = '';
+  });
+
+  // Viz mode tabs
+  document.querySelectorAll('.viz-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.viz-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      state.vizMode = tab.dataset.viz;
+      switchVizMode(state.vizMode);
+    });
+  });
+
+
+  // Run button
+  document.getElementById('run-btn').addEventListener('click', runAnalysis);
+
+  // Panel tabs
+  document.querySelectorAll('.ptab').forEach(t => {
+    t.addEventListener('click', () => {
+      document.querySelectorAll('.ptab').forEach(x => x.classList.remove('active'));
+      document.querySelectorAll('.ptab-content').forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      document.getElementById('tab-' + t.dataset.tab).classList.add('active');
+    });
+  });
+
+  // Chart tabs
+  document.querySelectorAll('.ctab').forEach(t => {
+    t.addEventListener('click', () => {
+      document.querySelectorAll('.ctab').forEach(x => x.classList.remove('active'));
+      t.classList.add('active');
+      state.chartMode = t.dataset.ctab;
+      if (state.graphData) renderCharts(state.graphData);
+    });
+  });
+
+  // Canvas controls
+  document.getElementById('zoom-in').addEventListener('click', () => { state.zoom = Math.min(state.zoom * 1.2, 4); applyTransform(); });
+  document.getElementById('zoom-out').addEventListener('click', () => { state.zoom = Math.max(state.zoom / 1.2, 0.2); applyTransform(); });
+  document.getElementById('zoom-fit').addEventListener('click', fitGraph);
+  document.getElementById('toggle-labels').addEventListener('click', () => {
+    state.showLabels = !state.showLabels;
+    document.querySelectorAll('.node-label').forEach(l => l.style.display = state.showLabels ? '' : 'none');
+  });
+  document.getElementById('toggle-comm').addEventListener('click', () => {
+    state.showComm = !state.showComm;
+    renderNodes();
+  });
+
+  // NL Query
+  document.getElementById('nl-submit').addEventListener('click', submitQuery);
+  document.getElementById('nl-query').addEventListener('keydown', e => { if (e.key === 'Enter') submitQuery(); });
+
+  document.querySelectorAll('.query-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.getElementById('nl-query').value = chip.dataset.q;
+      submitQuery();
+    });
+  });
+
+  // Context menu
+  document.getElementById('ctx-bfs').addEventListener('click', () => {
+    if (state.contextNode) rerunFrom(state.contextNode, 'bfs');
+    hideCtxMenu();
+  });
+  document.getElementById('ctx-dfs').addEventListener('click', () => {
+    if (state.contextNode) rerunFrom(state.contextNode, 'dfs');
+    hideCtxMenu();
+  });
+  document.getElementById('ctx-dijkstra').addEventListener('click', () => {
+    if (state.contextNode) rerunFrom(state.contextNode, 'dijkstra');
+    hideCtxMenu();
+  });
+
+  document.addEventListener('click', hideCtxMenu);
+
+  // SVG pan & zoom via wheel
+  const svg = document.getElementById('graph-svg');
+  svg.addEventListener('wheel', e => {
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.1 : 0.9;
+    state.zoom = Math.max(0.2, Math.min(4, state.zoom * factor));
+    applyTransform();
+  }, { passive: false });
+
+  let panning = false, px = 0, py = 0;
+  svg.addEventListener('mousedown', e => {
+    if (e.target === svg || e.target.tagName === 'g') {
+      panning = true; px = e.clientX; py = e.clientY;
+    }
+  });
+  document.addEventListener('mousemove', e => {
+    if (!panning) return;
+    state.panX += e.clientX - px;
+    state.panY += e.clientY - py;
+    px = e.clientX; py = e.clientY;
+    applyTransform();
+  });
+  document.addEventListener('mouseup', () => { panning = false; });
+}
+
+// ─── Run Analysis ───────────────────────────────────────────────
+async function runAnalysis() {
+  const btn = document.getElementById('run-btn');
+  btn.disabled = true;
+  showLoading(true);
+  document.getElementById('empty-state').style.display = 'none';
+
+  let payload;
+  if (state.activeDataset === 'custom' && customPayload) {
+    payload = customPayload;
+  } else {
+    payload = SAMPLES[state.activeDataset] || SAMPLES.social_network;
+  }
+
+  try {
+    const res = await fetch('/api/graph/analyze', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+    state.graphData = data;
+    state.directed = data.graph.directed;
+
+    renderAll(data);
+  } catch (err) {
+    // Fallback: run locally without backend (for demo when no server)
+    console.warn('Backend not reachable, running client-side demo:', err.message);
+    const demo = buildClientDemo(payload);
+    state.graphData = demo;
+    state.directed = demo.graph.directed;
+    renderAll(demo);
+  } finally {
+    btn.disabled = false;
+    showLoading(false);
+  }
+}
+
+// ─── Client-side demo fallback ──────────────────────────────────
+function buildClientDemo(payload) {
+  const nodes = payload.nodes.map(n => ({
+    id: String(n.id),
+    label: n.label || String(n.id),
+    degree_centrality: Math.random().toFixed(4),
+    closeness_centrality: Math.random().toFixed(4),
+    betweenness_centrality: Math.random().toFixed(4),
+    community: Math.floor(Math.random() * 4),
+    component: 0,
+  }));
+  const edges = payload.edges.map(e => ({source: String(e.source), target: String(e.target), weight: e.weight || 1}));
+  const n = nodes.length, e = edges.length;
+  return {
+    graph: { nodes, edges, directed: payload.directed || false },
+    stats: { node_count: n, edge_count: e, component_count: 1, community_count: 4,
+             density: (2 * e / (n * (n-1))).toFixed(4) },
+    etl_log: [
+      {step:"EXTRACT", msg:`Loaded ${n} nodes, ${e} edges (client-side)`, status:"ok"},
+      {step:"TRANSFORM", msg:"Built graph locally", status:"ok"},
+      {step:"VALIDATE", msg:"Density computed", status:"ok"},
+      {step:"LOAD", msg:"Ready (no backend)", status:"ok"},
+    ],
+    algorithms: { bfs: {order: nodes.slice(0,5).map(x=>x.id), visited_count: n},
+                  dfs: {order: nodes.slice(0,5).map(x=>x.id), visited_count: n} },
+  };
+}
+
+// ─── Render All ─────────────────────────────────────────────────
+function renderAll(data) {
+  updateStats(data.stats, data.graph.directed);
+  renderGraph(data.graph);
+  renderCentralityTables(data.graph.nodes);
+  renderETLLog(data.etl_log || []);
+  renderCharts(data);
+  if (state.vizMode !== 'network') renderFullChart(state.vizMode);
+  renderPathTraces(data.algorithms);
+}
+
+// ─── Stats ──────────────────────────────────────────────────────
+function updateStats(stats, directed) {
+  animateCount('s-nodes', stats.node_count);
+  animateCount('s-edges', stats.edge_count);
+  animateCount('s-comps', stats.component_count);
+  animateCount('s-comms', stats.community_count);
+  document.getElementById('s-density').textContent = stats.density;
+  document.getElementById('s-directed').textContent = directed ? 'Directed' : 'Undirected';
+}
+
+function animateCount(id, target) {
+  const el = document.getElementById(id);
+  const start = parseInt(el.textContent) || 0;
+  const dur = 600, step = 16;
+  let elapsed = 0;
+  const tick = setInterval(() => {
+    elapsed += step;
+    const progress = Math.min(elapsed / dur, 1);
+    el.textContent = Math.round(start + (target - start) * easeOut(progress));
+    if (progress >= 1) clearInterval(tick);
+  }, step);
+}
+function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
+
+// ─── Graph Rendering (Force-Directed) ───────────────────────────
+function renderGraph(graph) {
+  const wrap  = document.getElementById('canvas-wrap');
+  const W = wrap.clientWidth, H = wrap.clientHeight;
+
+  // Map nodes with initial positions (circular layout as seed)
+  const n = graph.nodes.length;
+  state.nodes = graph.nodes.map((nd, i) => {
+    const angle = (2 * Math.PI * i) / n;
+    const r = Math.min(W, H) * 0.3;
+    return {
+      ...nd,
+      x: W / 2 + r * Math.cos(angle),
+      y: H / 2 + r * Math.sin(angle),
+      vx: 0, vy: 0,
+    };
+  });
+
+  state.edges = graph.edges.map(e => ({ ...e }));
+  state.directed = graph.directed;
+
+  drawGraph();
+  runSimulation();
+}
+
+function drawGraph() {
+  const edgesG = document.getElementById('edges-g');
+  const nodesG = document.getElementById('nodes-g');
+  edgesG.innerHTML = '';
+  nodesG.innerHTML = '';
+  applyTransform();
+
+  // Draw edges
+  const nodeMap = {};
+  state.nodes.forEach(nd => nodeMap[nd.id] = nd);
+
+  state.edges.forEach((edge, i) => {
+    const u = nodeMap[edge.source];
+    const v = nodeMap[edge.target];
+    if (!u || !v) return;
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', u.x); line.setAttribute('y1', u.y);
+    line.setAttribute('x2', v.x); line.setAttribute('y2', v.y);
+    line.classList.add('edge-line');
+    if (state.directed) line.setAttribute('marker-end', 'url(#arrow)');
+    line.dataset.idx = i;
+    edgesG.appendChild(line);
+  });
+
+  renderNodes();
+}
+
+function renderNodes() {
+  const nodesG = document.getElementById('nodes-g');
+  nodesG.innerHTML = '';
+  const commColors = ['var(--accent)','var(--accent2)','var(--accent3)','var(--accent4)','#b44fff','#ff7f4f'];
+
+  state.nodes.forEach(nd => {
+    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    g.dataset.id = nd.id;
+
+    const r = 8 + Math.min(parseFloat(nd.degree_centrality || 0) * 30, 12);
+    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circle.setAttribute('cx', nd.x); circle.setAttribute('cy', nd.y);
+    circle.setAttribute('r', r);
+    circle.classList.add('node-circle');
+    if (state.showComm && nd.community !== undefined) {
+      circle.style.strokeColor = commColors[nd.community % commColors.length];
+      circle.style.stroke = commColors[nd.community % commColors.length];
+    }
+
+    const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    label.setAttribute('x', nd.x); label.setAttribute('y', nd.y + r + 3);
+    label.classList.add('node-label');
+    label.textContent = nd.label || nd.id;
+    if (!state.showLabels) label.style.display = 'none';
+
+    // Events
+    g.addEventListener('mouseenter', (e) => showTooltip(e, nd));
+    g.addEventListener('mouseleave', hideTooltip);
+    g.addEventListener('click', (e) => { e.stopPropagation(); selectNode(nd.id); });
+    g.addEventListener('contextmenu', (e) => { e.preventDefault(); showCtxMenu(e, nd.id); });
+
+    // Drag
+    makeDraggable(g, nd);
+
+    g.appendChild(circle);
+    g.appendChild(label);
+    nodesG.appendChild(g);
+  });
+}
+
+function makeDraggable(el, nd) {
+  let dragging = false, ox = 0, oy = 0;
+  el.addEventListener('mousedown', e => {
+    e.stopPropagation();
+    dragging = true; ox = e.clientX - nd.x; oy = e.clientY - nd.y;
+    nd.pinned = true;
+    el.querySelector('.node-circle').style.cursor = 'grabbing';
+  });
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    nd.x = e.clientX - ox; nd.y = e.clientY - oy;
+    updateNodePosition(nd);
+  });
+  document.addEventListener('mouseup', () => {
+    if (dragging) { dragging = false; nd.pinned = false; }
+  });
+}
+
+function updateNodePosition(nd) {
+  const nodeMap = {};
+  state.nodes.forEach(n => nodeMap[n.id] = n);
+  const g = document.querySelector(`[data-id="${nd.id}"]`);
+  if (!g) return;
+  const circle = g.querySelector('.node-circle');
+  const label  = g.querySelector('.node-label');
+  const r = parseFloat(circle.getAttribute('r'));
+  circle.setAttribute('cx', nd.x); circle.setAttribute('cy', nd.y);
+  label.setAttribute('x', nd.x); label.setAttribute('y', nd.y + r + 3);
+
+  // Update connected edges
+  document.querySelectorAll('.edge-line').forEach((line, i) => {
+    const edge = state.edges[i];
+    if (!edge) return;
+    const u = nodeMap[edge.source], v = nodeMap[edge.target];
+    if (!u || !v) return;
+    line.setAttribute('x1', u.x); line.setAttribute('y1', u.y);
+    line.setAttribute('x2', v.x); line.setAttribute('y2', v.y);
+  });
+}
+
+// ─── Force Simulation ───────────────────────────────────────────
+function runSimulation() {
+  if (state.simulation) clearInterval(state.simulation);
+  const wrap = document.getElementById('canvas-wrap');
+  const W = wrap.clientWidth, H = wrap.clientHeight;
+  const nodeMap = {};
+  state.nodes.forEach(nd => nodeMap[nd.id] = nd);
+
+  let iter = 0;
+  state.simulation = setInterval(() => {
+    iter++;
+    const alpha = Math.max(0.005, 0.3 * Math.exp(-iter * 0.025));
+
+    // Initialize forces
+    state.nodes.forEach(nd => { nd.fx = 0; nd.fy = 0; });
+
+    // Repulsion (between all pairs)
+    for (let i = 0; i < state.nodes.length; i++) {
+      for (let j = i + 1; j < state.nodes.length; j++) {
+        const a = state.nodes[i], b = state.nodes[j];
+        let dx = b.x - a.x, dy = b.y - a.y;
+        const dist2 = dx * dx + dy * dy + 0.01;
+        const dist = Math.sqrt(dist2);
+        const strength = 2500 / dist2;
+        dx /= dist; dy /= dist;
+        a.fx -= dx * strength; a.fy -= dy * strength;
+        b.fx += dx * strength; b.fy += dy * strength;
+      }
+    }
+
+    // Attraction (spring on edges)
+    const L = 100; // rest length
+    state.edges.forEach(edge => {
+      const u = nodeMap[edge.source], v = nodeMap[edge.target];
+      if (!u || !v) return;
+      const dx = v.x - u.x, dy = v.y - u.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) + 0.01;
+      const force = (dist - L) * 0.04;
+      const fx = dx / dist * force, fy = dy / dist * force;
+      u.fx += fx; u.fy += fy;
+      v.fx -= fx; v.fy -= fy;
+    });
+
+    // Centering
+    let cx = 0, cy = 0;
+    state.nodes.forEach(nd => { cx += nd.x; cy += nd.y; });
+    cx /= state.nodes.length; cy /= state.nodes.length;
+    state.nodes.forEach(nd => {
+      nd.fx += (W / 2 - cx) * 0.01;
+      nd.fy += (H / 2 - cy) * 0.01;
+    });
+
+    // Integrate
+    state.nodes.forEach(nd => {
+      if (nd.pinned) return;
+      nd.vx = (nd.vx + nd.fx * alpha) * 0.85;
+      nd.vy = (nd.vy + nd.fy * alpha) * 0.85;
+      nd.x += nd.vx;
+      nd.y += nd.vy;
+      nd.x = Math.max(20, Math.min(W - 20, nd.x));
+      nd.y = Math.max(20, Math.min(H - 20, nd.y));
+    });
+
+    // Re-render if still moving
+    if (alpha > 0.008) {
+      state.nodes.forEach(nd => updateNodePosition(nd));
+    } else {
+      clearInterval(state.simulation);
+    }
+  }, 16);
+}
+
+// ─── Centrality Tables ──────────────────────────────────────────
+function renderCentralityTables(nodes) {
+  fillTable('tbl-degree',  nodes, 'degree_centrality',      'var(--accent)');
+  fillTable('tbl-between', nodes, 'betweenness_centrality', 'var(--accent2)');
+}
+
+function fillTable(tableId, nodes, key, color) {
+  const sorted = [...nodes].sort((a, b) => parseFloat(b[key]) - parseFloat(a[key]));
+  const max = parseFloat(sorted[0]?.[key] || 1) || 1;
+  const tbody = document.querySelector(`#${tableId} tbody`);
+  tbody.innerHTML = '';
+  sorted.slice(0, 8).forEach((nd, i) => {
+    const score = parseFloat(nd[key] || 0);
+    const pct = (score / max * 100).toFixed(0);
+    const badge = i < 3 ? `<span class="rank-badge r${i+1}">${i+1}</span>` : `<span class="rank-badge">${i+1}</span>`;
+    tbody.innerHTML += `
+      <tr>
+        <td>${badge}</td>
+        <td class="node-id">${nd.id}</td>
+        <td>${score.toFixed(4)}</td>
+        <td class="bar-cell">
+          <div class="bar-fill" style="width:${pct}%;background:${color}"></div>
+        </td>
+      </tr>`;
+  });
+}
+
+// ─── ETL Log ────────────────────────────────────────────────────
+function renderETLLog(log) {
+  const container = document.getElementById('etl-log-container');
+  container.innerHTML = '';
+  log.forEach((entry, i) => {
+    const div = document.createElement('div');
+    div.classList.add('log-entry');
+    div.style.animationDelay = `${i * 0.1}s`;
+    div.innerHTML = `<span class="log-step ${entry.step}">${entry.step}</span><span class="log-msg">${entry.msg}</span>`;
+    container.appendChild(div);
+  });
+}
+
+// ─── Path Traces ────────────────────────────────────────────────
+function renderPathTraces(algos) {
+  if (!algos) return;
+  renderTrace('bfs-path', algos.bfs?.order?.slice(0, 7) || []);
+  renderTrace('dfs-path', algos.dfs?.order?.slice(0, 7) || []);
+}
+
+function renderTrace(id, order) {
+  const el = document.getElementById(id);
+  el.innerHTML = '';
+  order.forEach((node, i) => {
+    if (i > 0) { const arr = document.createElement('span'); arr.className = 'path-arrow'; arr.textContent = '→'; el.appendChild(arr); }
+    const span = document.createElement('span'); span.className = 'path-node'; span.textContent = node; el.appendChild(span);
+  });
+}
+
+// ─── Charts ─────────────────────────────────────────────────────
+function renderCharts(data) {
+  const nodes = data.graph?.nodes || [];
+  if (!nodes.length) return;
+
+  const labels = nodes.slice(0, 10).map(n => n.id);
+  const degData = nodes.slice(0, 10).map(n => parseFloat(n.degree_centrality || 0));
+  const betData = nodes.slice(0, 10).map(n => parseFloat(n.betweenness_centrality || 0));
+  const clsData = nodes.slice(0, 10).map(n => parseFloat(n.closeness_centrality || 0));
+
+  renderMainChart(labels, degData, betData);
+  renderScatterChart(nodes);
+}
+
+function renderMainChart(labels, degData, betData) {
+  const ctx = document.getElementById('chart-main').getContext('2d');
+  if (state.charts.main) state.charts.main.destroy();
+
+  const mode = state.chartMode;
+  document.getElementById('chart-main-title').textContent =
+    mode === 'bar' ? 'Degree Centrality' : mode === 'line' ? 'Centrality Trends' : 'Node Scores';
+
+  const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#4fffb0';
+  const accent2 = '#ff4f8b';
+
+  const cfg = {
+    bar: {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Degree', data: degData,
+          backgroundColor: 'rgba(79,255,176,0.25)', borderColor: accent, borderWidth: 1.5, borderRadius: 3,
+        }],
+      },
+    },
+    line: {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label: 'Degree', data: degData, borderColor: accent, tension: 0.4, fill: true, backgroundColor: 'rgba(79,255,176,0.08)', pointRadius: 3 },
+          { label: 'Betweenness', data: betData, borderColor: accent2, tension: 0.4, fill: false, pointRadius: 3 },
+        ],
+      },
+    },
+    heatmap: {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          { label: 'Degree', data: degData, backgroundColor: 'rgba(79,255,176,0.4)', borderWidth: 0, borderRadius: 2 },
+          { label: 'Betweenness', data: betData, backgroundColor: 'rgba(255,79,139,0.4)', borderWidth: 0, borderRadius: 2 },
+        ],
+      },
+    },
+  };
+
+  const chosen = cfg[mode] || cfg.bar;
+  state.charts.main = new Chart(ctx, {
+    ...chosen,
+    options: chartOptions(),
+  });
+}
+
+function renderScatterChart(nodes) {
+  const ctx = document.getElementById('chart-scatter').getContext('2d');
+  if (state.charts.scatter) state.charts.scatter.destroy();
+
+  const scatterData = nodes.slice(0, 12).map(n => ({
+    x: parseFloat(n.betweenness_centrality || 0),
+    y: parseFloat(n.closeness_centrality || 0),
+    label: n.id,
+  }));
+
+  state.charts.scatter = new Chart(ctx, {
+    type: 'scatter',
+    data: {
+      datasets: [{
+        label: 'Nodes',
+        data: scatterData,
+        backgroundColor: 'rgba(79,168,255,0.5)',
+        pointRadius: 5,
+        pointHoverRadius: 7,
+      }],
+    },
+    options: {
+      ...chartOptions(),
+      plugins: { ...chartOptions().plugins, tooltip: {
+        callbacks: {
+          label: ctx => `${ctx.raw.label || ''} (${ctx.raw.x.toFixed(3)}, ${ctx.raw.y.toFixed(3)})`,
+        },
+      }},
+    },
+  });
+}
+
+function chartOptions() {
+  return {
+    responsive: true, maintainAspectRatio: false,
+    animation: { duration: 500 },
+    plugins: { legend: { labels: { color: '#6b7180', font: { family: 'Space Mono', size: 9 }, boxWidth: 10 }}},
+    scales: {
+      x: { ticks: { color: '#6b7180', font: { family: 'Space Mono', size: 8 }, maxRotation: 45 }, grid: { color: '#252830' }},
+      y: { ticks: { color: '#6b7180', font: { family: 'Space Mono', size: 8 }}, grid: { color: '#252830' }},
+    },
+  };
+}
+
+// ─── NL Query ───────────────────────────────────────────────────
+async function submitQuery() {
+  if (!state.graphData) return;
+  const q = document.getElementById('nl-query').value.trim();
+  if (!q) return;
+
+  const ansEl = document.getElementById('query-answer');
+  ansEl.classList.add('visible');
+  ansEl.textContent = '…';
+
+  const payload = { query: q, graph: state.graphData.graph };
+
+  try {
+    const res = await fetch('/api/graph/query', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    ansEl.textContent = data.answer || 'No answer.';
+    highlightAlgo(data.algorithm);
+  } catch {
+    // Client-side fallback
+    ansEl.textContent = clientQuery(q, state.graphData.graph);
+  }
+}
+
+function clientQuery(q, graph) {
+  q = q.toLowerCase();
+  const nodes = graph.nodes;
+  if (!nodes.length) return 'No graph loaded.';
+  if (q.includes('hub') || q.includes('connect') || q.includes('degree')) {
+    const top = nodes.reduce((a, b) => parseFloat(a.degree_centrality) > parseFloat(b.degree_centrality) ? a : b);
+    return `Most connected: '${top.id}' (degree centrality: ${parseFloat(top.degree_centrality).toFixed(4)})`;
+  }
+  if (q.includes('bridge') || q.includes('between')) {
+    const top = nodes.reduce((a, b) => parseFloat(a.betweenness_centrality) > parseFloat(b.betweenness_centrality) ? a : b);
+    return `Key bridge node: '${top.id}' (betweenness: ${parseFloat(top.betweenness_centrality).toFixed(4)})`;
+  }
+  return `Graph has ${nodes.length} nodes and ${graph.edges.length} edges.`;
+}
+
+function highlightAlgo(algo) {
+  const badge = document.getElementById('algo-badge');
+  document.getElementById('algo-name').textContent = algo?.toUpperCase() || '—';
+  badge.classList.add('visible');
+  setTimeout(() => badge.classList.remove('visible'), 4000);
+}
+
+// ─── Re-run from node ───────────────────────────────────────────
+async function rerunFrom(nodeId, algo) {
+  if (!state.graphData) return;
+  const q = algo === 'bfs' ? `run bfs from ${nodeId}` :
+            algo === 'dfs' ? `run dfs from ${nodeId}` : `dijkstra from ${nodeId}`;
+  document.getElementById('nl-query').value = q;
+  await submitQuery();
+  highlightAlgo(algo);
+}
+
+// ─── Select node ────────────────────────────────────────────────
+function selectNode(id) {
+  state.selectedNode = id;
+  document.querySelectorAll('.node-circle').forEach(c => c.classList.remove('selected'));
+  const g = document.querySelector(`[data-id="${id}"]`);
+  if (g) g.querySelector('.node-circle')?.classList.add('selected');
+}
+
+// ─── Tooltip ────────────────────────────────────────────────────
+function showTooltip(e, nd) {
+  const tt = document.getElementById('tooltip');
+  document.getElementById('tt-name').textContent = nd.label || nd.id;
+  document.getElementById('tt-deg').textContent  = parseFloat(nd.degree_centrality || 0).toFixed(4);
+  document.getElementById('tt-bet').textContent  = parseFloat(nd.betweenness_centrality || 0).toFixed(4);
+  document.getElementById('tt-comm').textContent = nd.community ?? '—';
+  tt.classList.add('visible');
+  tt.style.left = (e.clientX + 14) + 'px';
+  tt.style.top  = (e.clientY - 10) + 'px';
+}
+function hideTooltip() { document.getElementById('tooltip').classList.remove('visible'); }
+
+// ─── Context menu ────────────────────────────────────────────────
+function showCtxMenu(e, nodeId) {
+  e.stopPropagation();
+  state.contextNode = nodeId;
+  const menu = document.getElementById('ctx-menu');
+  menu.style.left = e.clientX + 'px';
+  menu.style.top  = e.clientY + 'px';
+  menu.classList.add('show');
+}
+function hideCtxMenu() { document.getElementById('ctx-menu').classList.remove('show'); }
+
+// ─── Transform ──────────────────────────────────────────────────
+function applyTransform() {
+  const edgesG = document.getElementById('edges-g');
+  const nodesG = document.getElementById('nodes-g');
+  const t = `translate(${state.panX}px, ${state.panY}px) scale(${state.zoom})`;
+  edgesG.style.transform = t;
+  nodesG.style.transform = t;
+  edgesG.style.transformOrigin = '0 0';
+  nodesG.style.transformOrigin = '0 0';
+}
+
+function fitGraph() {
+  state.zoom = 1; state.panX = 0; state.panY = 0;
+  applyTransform();
+}
+
+// ─── Custom JSON modal ───────────────────────────────────────────
+function showCustomModal() {
+  const json = prompt(
+    'Paste your graph JSON:\n{"nodes":[{"id":"A"},...],"edges":[{"source":"A","target":"B","weight":1},...], "directed":false}',
+    JSON.stringify({ nodes: [{id:"A"},{id:"B"},{id:"C"}], edges: [{source:"A",target:"B",weight:1},{source:"B",target:"C",weight:2}], directed: false })
+  );
+  if (json) {
+    try {
+      customPayload = JSON.parse(json);
+      runAnalysis();
+    } catch {
+      alert('Invalid JSON');
+    }
+  }
+}
+
+// ─── Upload Modal ───────────────────────────────────────────────
+let pendingUploadFile = null;
+let uploadFileType = 'csv'; // 'csv' | 'json'
+
+function openUploadModal(type) {
+  uploadFileType = type;
+  pendingUploadFile = null;
+  document.getElementById('upload-file-name').textContent = '';
+  document.getElementById('upload-submit-btn').disabled = true;
+
+  const modal = document.getElementById('upload-modal-overlay');
+  const title = document.getElementById('upload-modal-title');
+  const formatInfo = document.getElementById('upload-format-pre');
+  const fmtLabel = document.getElementById('upload-format-label');
+  const dropHint = document.getElementById('upload-drop-hint');
+  const fileInput = document.getElementById('upload-file-input');
+
+  if (type === 'csv') {
+    title.textContent = 'Upload CSV File';
+    fmtLabel.textContent = 'Expected CSV Format (edge list)';
+    formatInfo.textContent = 'source,target,weight\nAlice,Bob,1.0\nBob,Carol,2.0\nCarol,Dave,1.5';
+    dropHint.textContent = 'Accepts .csv files - edge list format';
+    fileInput.accept = '.csv';
+  } else {
+    title.textContent = 'Upload JSON File';
+    fmtLabel.textContent = 'Expected JSON Format';
+    formatInfo.textContent = '{\n  "directed": false,\n  "nodes": [{"id":"A"}, {"id":"B"}],\n  "edges": [\n    {"source":"A","target":"B","weight":1}\n  ]\n}';
+    dropHint.textContent = 'Accepts .json files - graph structure';
+    fileInput.accept = '.json';
+  }
+
+  modal.classList.add('show');
+}
+
+function closeUploadModal() {
+  document.getElementById('upload-modal-overlay').classList.remove('show');
+  pendingUploadFile = null;
+}
+
+function handleUploadFileSelect(file) {
+  const ext = file.name.split('.').pop().toLowerCase();
+  if (uploadFileType === 'csv' && ext !== 'csv') {
+    alert('Please select a .csv file.');
+    return;
+  }
+  if (uploadFileType === 'json' && ext !== 'json') {
+    alert('Please select a .json file.');
+    return;
+  }
+  pendingUploadFile = file;
+  document.getElementById('upload-file-name').textContent = file.name + ' (' + (file.size / 1024).toFixed(1) + ' KB)';
+  document.getElementById('upload-submit-btn').disabled = false;
+}
+
+function submitUploadedFile() {
+  if (!pendingUploadFile) return;
+  const file = pendingUploadFile;
+
+  const reader = new FileReader();
+  reader.onload = function(evt) {
+    const content = evt.target.result;
+
+    // Set UI to 'custom' mode
+    document.querySelectorAll('.ds-btn:not(#upload-csv-btn):not(#upload-json-btn)').forEach(b => b.classList.remove('active'));
+    document.querySelector('[data-key="custom"]').classList.add('active');
+    state.activeDataset = 'custom';
+
+    try {
+      if (uploadFileType === 'json') {
+        customPayload = JSON.parse(content);
+      } else {
+        customPayload = parseCSVToGraph(content);
+      }
+      closeUploadModal();
+      runAnalysis();
+    } catch (err) {
+      console.error(err);
+      alert('Error parsing file: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function parseCSVToGraph(csvText) {
+  const lines = csvText.trim().split(/\r?\n/);
+  if (lines.length < 1) throw new Error('CSV is empty.');
+
+  const nodes = new Set();
+  const edges = [];
+  let srcIdx = 0, tgtIdx = 1, wgtIdx = 2;
+  let hasHeader = false;
+
+  // Detect headers
+  const firstParts = lines[0].split(',').map(s => s.trim().replace(/^"|"$/g, '').toLowerCase());
+  if (firstParts.includes('source') && firstParts.includes('target')) {
+    srcIdx = firstParts.indexOf('source');
+    tgtIdx = firstParts.indexOf('target');
+    const wI = firstParts.indexOf('weight');
+    if (wI !== -1) wgtIdx = wI;
+    hasHeader = true;
+  } else if (isNaN(firstParts[0]) && isNaN(firstParts[1])) {
+    hasHeader = true; // likely a header row with non-numeric values
+  }
+
+  lines.forEach((line, idx) => {
+    if (!line.trim()) return;
+    if (idx === 0 && hasHeader) return;
+    const parts = line.split(',').map(s => s.trim().replace(/^"|"$/g, ''));
+    if (parts.length >= 2) {
+      const source = parts[srcIdx];
+      const target = parts[tgtIdx];
+      let weight = 1.0;
+      if (parts[wgtIdx] !== undefined && !isNaN(parseFloat(parts[wgtIdx]))) {
+        weight = parseFloat(parts[wgtIdx]);
+      }
+      if (source && target) {
+        nodes.add(source);
+        nodes.add(target);
+        edges.push({ source, target, weight });
+      }
+    }
+  });
+
+  return {
+    directed: false,
+    nodes: Array.from(nodes).map(id => ({ id })),
+    edges: edges
+  };
+}
+
+// ─── Viz Mode Switching ─────────────────────────────────────────
+function switchVizMode(mode) {
+  const svg = document.getElementById('graph-svg');
+  const chartWrap = document.getElementById('viz-chart-wrap');
+  const controls = document.getElementById('canvas-controls');
+  const emptyState = document.getElementById('empty-state');
+
+  if (mode === 'network') {
+    svg.style.display = '';
+    chartWrap.classList.remove('visible');
+    controls.style.display = '';
+    if (!state.graphData) emptyState.style.display = '';
+  } else {
+    svg.style.display = 'none';
+    controls.style.display = 'none';
+    emptyState.style.display = 'none';
+    chartWrap.classList.add('visible');
+    renderFullChart(mode);
+  }
+}
+
+function renderFullChart(mode) {
+  if (!state.graphData) return;
+  const nodes = state.graphData.graph?.nodes || [];
+  if (!nodes.length) return;
+
+  const ctx = document.getElementById('viz-full-chart').getContext('2d');
+  if (state.vizChart) state.vizChart.destroy();
+
+  const labels = nodes.map(n => n.id);
+  const degData = nodes.map(n => parseFloat(n.degree_centrality || 0));
+  const betData = nodes.map(n => parseFloat(n.betweenness_centrality || 0));
+  const clsData = nodes.map(n => parseFloat(n.closeness_centrality || 0));
+
+  const accent  = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#4fffb0';
+  const accent2 = '#ff4f8b';
+  const accent3 = '#4fa8ff';
+  const accent4 = '#ffb84f';
+
+  const fullOpts = {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: { duration: 600, easing: 'easeOutCubic' },
+    plugins: {
+      legend: {
+        labels: { color: '#d4d8e2', font: { family: 'Space Mono', size: 11 }, boxWidth: 12, padding: 16 },
+      },
+      title: {
+        display: true,
+        color: '#f0f2f8',
+        font: { family: 'Syne', size: 15, weight: 700 },
+        padding: { bottom: 18 },
+      },
+    },
+    scales: {
+      x: { ticks: { color: '#6b7180', font: { family: 'Space Mono', size: 9 }, maxRotation: 45 }, grid: { color: '#252830' } },
+      y: { ticks: { color: '#6b7180', font: { family: 'Space Mono', size: 9 } }, grid: { color: '#252830' } },
+    },
+  };
+
+  if (mode === 'bar') {
+    state.vizChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          { label: 'Degree', data: degData, backgroundColor: 'rgba(79,255,176,0.3)', borderColor: accent, borderWidth: 1.5, borderRadius: 4 },
+          { label: 'Betweenness', data: betData, backgroundColor: 'rgba(255,79,139,0.3)', borderColor: accent2, borderWidth: 1.5, borderRadius: 4 },
+          { label: 'Closeness', data: clsData, backgroundColor: 'rgba(79,168,255,0.3)', borderColor: accent3, borderWidth: 1.5, borderRadius: 4 },
+        ],
+      },
+      options: { ...fullOpts, plugins: { ...fullOpts.plugins, title: { ...fullOpts.plugins.title, text: 'Centrality Scores — Bar Chart' } } },
+    });
+  } else if (mode === 'line') {
+    state.vizChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label: 'Degree', data: degData, borderColor: accent, backgroundColor: 'rgba(79,255,176,0.08)', tension: 0.4, fill: true, pointRadius: 4, pointBackgroundColor: accent },
+          { label: 'Betweenness', data: betData, borderColor: accent2, backgroundColor: 'rgba(255,79,139,0.06)', tension: 0.4, fill: true, pointRadius: 4, pointBackgroundColor: accent2 },
+          { label: 'Closeness', data: clsData, borderColor: accent3, backgroundColor: 'rgba(79,168,255,0.06)', tension: 0.4, fill: true, pointRadius: 4, pointBackgroundColor: accent3 },
+        ],
+      },
+      options: { ...fullOpts, plugins: { ...fullOpts.plugins, title: { ...fullOpts.plugins.title, text: 'Centrality Trends — Line Chart' } } },
+    });
+  } else if (mode === 'heatmap') {
+    // Simulated heatmap using stacked bar with all 3 centrality values
+    state.vizChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          { label: 'Degree', data: degData, backgroundColor: degData.map(v => `rgba(79,255,176,${Math.max(0.15, v)})`), borderWidth: 0, borderRadius: 2 },
+          { label: 'Betweenness', data: betData, backgroundColor: betData.map(v => `rgba(255,79,139,${Math.max(0.15, v)})`), borderWidth: 0, borderRadius: 2 },
+          { label: 'Closeness', data: clsData, backgroundColor: clsData.map(v => `rgba(79,168,255,${Math.max(0.15, v)})`), borderWidth: 0, borderRadius: 2 },
+        ],
+      },
+      options: {
+        ...fullOpts,
+        plugins: { ...fullOpts.plugins, title: { ...fullOpts.plugins.title, text: 'Centrality Heatmap — Stacked' } },
+        scales: {
+          ...fullOpts.scales,
+          x: { ...fullOpts.scales.x, stacked: true },
+          y: { ...fullOpts.scales.y, stacked: true },
+        },
+      },
+    });
+  }
+}
+
+// ─── Loading ────────────────────────────────────────────────────
+function showLoading(show) {
+  document.getElementById('loading-overlay').classList.toggle('show', show);
+}
+
+</script>
+</body>
+</html>
